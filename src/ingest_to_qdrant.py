@@ -3,7 +3,7 @@ import glob
 import logging
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import Qdrant
 from qdrant_client import QdrantClient
@@ -61,20 +61,39 @@ def main():
             logger.warning("No markdown files found. Exiting.")
             return
 
-        documents = []
-        for file_path in md_files:
-            logger.info(f"Loading document: {os.path.basename(file_path)}")
-            loader = TextLoader(file_path, encoding='utf-8')
-            documents.extend(loader.load())
-
-        # 5. Split documents into chunks using LangChain
-        logger.info("Splitting documents into textual chunks...")
+        logger.info("Splitting documents into chunks using Markdown structure...")
+        
+        headers_to_split_on = [
+            ("#", "Header 1"),
+            ("##", "Header 2"),
+            ("###", "Header 3"),
+        ]
+        markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50,
+            chunk_size=1000,
+            chunk_overlap=150,
             separators=["\n\n", "\n", " ", ""]
         )
-        chunks = text_splitter.split_documents(documents)
+
+        chunks = []
+        for file_path in md_files:
+            logger.info(f"Loading and splitting document: {os.path.basename(file_path)}")
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # 1. Split by header
+            md_header_splits = markdown_splitter.split_text(content)
+            
+            # 2. Split further if any section is too long
+            file_chunks = text_splitter.split_documents(md_header_splits)
+            
+            # 3. Inject file path metadata
+            for chunk in file_chunks:
+                chunk.metadata["source"] = file_path
+                chunk.metadata["filename"] = os.path.basename(file_path)
+                
+            chunks.extend(file_chunks)
+
         logger.info(f"Generated {len(chunks)} chunks from {len(md_files)} files.")
 
         # 6. Generate embeddings and Upsert to Qdrant
