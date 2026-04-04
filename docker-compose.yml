@@ -22,6 +22,8 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     restart: always
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
     ports:
       - "6333:6333"
       - "6334:6334"

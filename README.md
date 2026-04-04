@@ -59,10 +59,22 @@ To allow the AI to answer contextually, you need to embed the documentation into
 ## Technical Details
 
 ### Architecture Decisions
-*(To be filled in later)*
+We chose an event-driven architecture using **n8n** for orchestrating the AI pipelining due to its powerful visual workflow design and robust `Langchain` nodes. 
+The perfect production-ready workflow (`support_ticket_pipeline.json`) processes incoming webhooks (with rigorous field validation), uses an `IF` condition to smartly handle optional PDF attachments, extracts textual data safely (`continueOnFail`), and constructs a clean ticket log. From there, we perform a sequential AI analysis via Agent nodes:
+1. **Classification Agent:** Determines Category, Urgency, Sentiment, Confidence, and Summary.
+2. **RAG Agent:** Uses the embedded knowledge base via the `VectorStoreTool` to ground the draft response based strictly on company policies.
+
+A `Switch` node routes logs to Google Sheets (including full pipeline logs and knowledge source tracking), and sends contextual HTML email notifications depending on whether the ticket is marked *Urgent* or *Medium*. Any ticket with Confidence < 0.6 is additionally flagged for manual review. We also implemented comprehensive error handling (e.g. `onError: 'continueErrorOutput'`) across the pipeline.
 
 ### AI Output Validation
-*(To be filled in later)*
+To ensure perfectly reliable and parsable data from the Classification step, we use the `Structured Output Parser` node enforcing a strict programmatic JSON schema:
+`"Category"`, `"Urgency" (critical, high, medium, low)`, `"Sentiment"`, `"Confidence" (0-1)`, and `"Summary"`.
+Handling outputs as tightly coupled JSON guarantees the downstream `Switch` routing logic, Google Sheets ingestion, and RAG drafting never fail due to malformed conversational garbage.
 
 ### RAG Implementation Details
-*(To be filled in later)*
+For knowledge retrieval, we simulated 5 basic Markdown FAQ/policy documents inside the `/data/knowledge_base` folder. 
+The RAG strategy uses:
+- **Chunking:** `RecursiveCharacterTextSplitter` with balanced chunks to retain paragraph context.
+- **Embedding:** `OpenAI embeddings` vectorizing raw strings to high-dimensional space.
+- **Vector Store:** Local `Qdrant` instances run in Docker for fast and scalable nearest-neighbor/cosine similarity.
+- **Retrieval & Drafting:** A Langchain Agent leverages an attached VectorStoreTool to pull the top-3 most similar chunks before drafting a response to the user. A strict fallback message is baked into the system prompt for low-confidence queries (`< 0.6`).

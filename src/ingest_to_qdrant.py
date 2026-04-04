@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_qdrant import QdrantVectorStore
+from langchain_qdrant import Qdrant
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
@@ -24,7 +24,8 @@ if not OPENAI_API_KEY:
     logger.error("OPENAI_API_KEY not found in environment variables. Please set it in the .env file.")
     exit(1)
 
-QDRANT_URL = "http://localhost:6333"
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 COLLECTION_NAME = "knowledge_base"
 
 def main():
@@ -38,7 +39,7 @@ def main():
 
         # 2. Connect to Qdrant Client
         logger.info(f"Connecting to local Qdrant instance at {QDRANT_URL}")
-        client = QdrantClient(url=QDRANT_URL)
+        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
         # 3. Create the collection if it doesn't already exist
         if not client.collection_exists(collection_name=COLLECTION_NAME):
@@ -78,11 +79,12 @@ def main():
 
         # 6. Generate embeddings and Upsert to Qdrant
         logger.info("Generating embeddings and upserting into Qdrant...")
-        QdrantVectorStore.from_documents(
+        Qdrant.from_documents(
             documents=chunks,
             embedding=embeddings,
             url=QDRANT_URL,
             collection_name=COLLECTION_NAME,
+            api_key=QDRANT_API_KEY,
         )
         logger.info("Ingestion completed successfully!")
 
