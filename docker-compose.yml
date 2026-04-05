@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.1
     container_name: traefik
     command:
       - "--providers.docker=true"
@@ -21,7 +21,9 @@ services:
       - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     environment:
-      - DOCKER_API_VERSION=1.41
+      - DOCKER_API_VERSION="1.41"
+      - TRAEFIK_PROVIDERS_DOCKER_APIVERSION="1.41"
+      - TRAEFIK_PROVIDERS_DOCKER_ENDPOINT="unix:///var/run/docker.sock"
 
   portal:
     build: .
