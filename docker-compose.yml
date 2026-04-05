@@ -27,6 +27,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - N8N_BASE_URL=https://automation.noavia.alielite.dev
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.portal.rule=Host(`noavia.alielite.dev`)"
@@ -47,6 +49,8 @@ services:
       - WEBHOOK_URL=https://automation.noavia.alielite.dev/
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=https://qdrant.noavia.alielite.dev
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
     volumes:
       - n8n_data:/home/node/.n8n
     labels:
@@ -59,8 +63,16 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     restart: always
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
     volumes:
       - qdrant_data:/qdrant/storage
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qdrant.rule=Host(`qdrant.noavia.alielite.dev`)"
+      - "traefik.http.routers.qdrant.entrypoints=websecure"
+      - "traefik.http.routers.qdrant.tls.certresolver=myresolver"
+      - "traefik.http.services.qdrant.loadbalancer.server.port=6333"
 
 volumes:
   n8n_data:

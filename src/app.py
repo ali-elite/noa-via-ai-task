@@ -1,10 +1,22 @@
-import httpx
+import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-import os
+import httpx
+from src.ingest_to_qdrant import main as ingest_main
 
-app = FastAPI(title="Support Ticket Portal")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ingest data into Qdrant on startup
+    print("Ingesting knowledge base into Qdrant...")
+    try:
+        ingest_main()
+    except Exception as e:
+        print(f"Ingestion failed during startup: {e}")
+    yield
+
+app = FastAPI(title="Support Ticket Portal", lifespan=lifespan)
 N8N_BASE_URL = os.getenv("N8N_BASE_URL", "http://n8n:5678")
 
 # Mount static files
