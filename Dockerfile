@@ -2,7 +2,7 @@
 FROM ghcr.io/astral-sh/uv:latest AS uv
 
 # Use a standard Python slim image for the runtime
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 # Copy the uv binary from the first stage
 COPY --from=uv /uv /uvx /bin/
