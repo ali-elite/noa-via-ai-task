@@ -24,12 +24,12 @@ RUN uv sync --frozen --no-install-project
 COPY src/ /app/src/
 COPY data/ /app/data/
 
-# Place .venv on the path
+# Place .venv on the path and add /app to PYTHONPATH for module resolution
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app:$PYTHONPATH"
 
 # Expose port
 EXPOSE 8080
 
-# Command to run the application
-# We use 'uv run' to ensure the environment is correctly activated
-CMD ["uv", "run", "python", "src/app.py"]
+# Command to run the application as a module
+CMD ["uv", "run", "python", "-m", "src.app"]
