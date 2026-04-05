@@ -21,9 +21,9 @@ services:
       - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     environment:
-      - DOCKER_API_VERSION="1.41"
-      - TRAEFIK_PROVIDERS_DOCKER_APIVERSION="1.41"
-      - TRAEFIK_PROVIDERS_DOCKER_ENDPOINT="unix:///var/run/docker.sock"
+      - DOCKER_API_VERSION=1.41
+      - TRAEFIK_PROVIDERS_DOCKER_APIVERSION=1.41
+      - TRAEFIK_PROVIDERS_DOCKER_ENDPOINT=unix:///var/run/docker.sock
 
   portal:
     build: .
