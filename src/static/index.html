@@ -62,6 +62,7 @@
             margin-bottom: 0.5rem;
             background: linear-gradient(to right, #818cf8, #c084fc);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             font-weight: 700;
         }
@@ -196,15 +197,15 @@
                 <textarea id="message" name="Message" rows="4" placeholder="Describe your issue in detail..." required></textarea>
             </div>
 
-            <div class="row">
-                <div class="form-group">
-                    <label for="supervisor-email">Supervisor Email (Direct Receipt)</label>
-                    <input type="email" id="supervisor-email" name="supervisor-email" placeholder="manager@company.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="webhook">n8n Webhook URL</label>
-                    <input type="url" id="webhook" name="webhook" placeholder="https://n8n.your-instance.com/..." required>
-                </div>
+            <div class="form-group">
+                <label for="attachment">Attachment (Optional PDF)</label>
+                <input type="file" id="attachment" name="Attachment" accept="application/pdf">
+                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">Max 10MB. PDF only.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="supervisor-email">Supervisor Email (Direct Receipt)</label>
+                <input type="email" id="supervisor-email" name="supervisor-email" placeholder="manager@company.com" required>
             </div>
 
             <button type="submit" id="submit-btn">
@@ -223,6 +224,8 @@
         const btnLoader = document.getElementById('btn-loader');
         const responseMsg = document.getElementById('response-msg');
 
+        const N8N_WEBHOOK_URL = '/webhook/support-ticket'; // Standard n8n production path
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -233,17 +236,12 @@
             responseMsg.style.display = 'none';
 
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-            const webhookUrl = data.webhook;
+            // N8N receives files automatically when using FormData
             
-            // Remove webhook from payload before sending
-            delete data.webhook;
-
             try {
-                const response = await fetch(webhookUrl, {
+                const response = await fetch(N8N_WEBHOOK_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: formData // Use FormData directly for multipart/form-data
                 });
 
                 const result = await response.json();
