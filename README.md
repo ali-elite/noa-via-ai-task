@@ -72,7 +72,7 @@ To ensure perfectly reliable and parsable data from the Classification step, we 
 Handling outputs as tightly coupled JSON guarantees the downstream `Switch` routing logic, Google Sheets ingestion, and RAG drafting never fail due to malformed conversational garbage.
 
 ### RAG Implementation Details
-For knowledge retrieval, we simulated 5 basic Markdown FAQ/policy documents inside the `/data/knowledge_base` folder. 
+For knowledge retrieval, we provided 11 Markdown FAQ and policy documents inside the `/data/knowledge_base` folder. 
 The RAG strategy uses:
 - **Chunking:** `RecursiveCharacterTextSplitter` with balanced chunks to retain paragraph context.
 - **Embedding:** `OpenAI embeddings` vectorizing raw strings to high-dimensional space.

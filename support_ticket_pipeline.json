@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-04-04T21:08:56.530Z",
+  "createdAt": "2026-04-04T10:55:48.452Z",
+  "id": "xfQ8x3jS7iHBjLpz",
   "name": "AI-Powered Support Ticket Pipeline (RAG)",
+  "description": null,
+  "active": false,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -22,7 +28,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ── Validate & Generate Ticket ID ──\nconst body = $input.item.json.body || $input.item.json;\nconst errors = [];\nconst log = [];\n\nlog.push(`[${new Date().toISOString()}] Ticket received`);\n\n// Required fields\nconst name = (body.Name || body.name || '').toString().trim();\nconst email = (body.Email || body.email || '').toString().trim();\nconst subject = (body.Subject || body.subject || '').toString().trim();\nconst message = (body.Message || body.message || '').toString().trim();\n\nif (!name)    errors.push('Name is required');\nif (!email)   errors.push('Email is required');\nif (!subject) errors.push('Subject is required');\nif (!message || message.length === 0) errors.push('Message body is required and must not be empty');\n\n// Email format validation\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (email && !emailRegex.test(email)) {\n  errors.push('Email must be a valid format (e.g. user@example.com)');\n}\n\nconst newItem = {};\nif ($input.item.binary) {\n  newItem.binary = $input.item.binary;\n}\n\nif (errors.length > 0) {\n  log.push(`[${new Date().toISOString()}] Validation FAILED: ${errors.join('; ')}`);\n  newItem.json = {\n    valid: false,\n    errors,\n    processing_log: log.join('\\n')\n  };\n  return newItem;\n}\n\n// Generate ticket ID  (TKT-YYYYMMDD-XXXX)\nconst now = new Date();\nconst datePart = now.toISOString().slice(0,10).replace(/-/g,'');\nconst rand = Math.random().toString(36).substr(2, 6).toUpperCase();\nconst ticketId = `TKT-${datePart}-${rand}`;\n\nlog.push(`[${new Date().toISOString()}] Validation passed — Ticket ID: ${ticketId}`);\n\nnewItem.json = {\n  valid: true,\n  ticket_id: ticketId,\n  timestamp: now.toISOString(),\n  Name: name,\n  Email: email,\n  Subject: subject,\n  Message: message,\n  processing_log: log.join('\\n')\n};\n\nreturn newItem;"
+        "jsCode": "// \u2500\u2500 Validate & Generate Ticket ID \u2500\u2500\nconst body = $input.item.json.body || $input.item.json;\nconst errors = [];\nconst log = [];\n\nlog.push(`[${new Date().toISOString()}] Ticket received`);\n\n// Required fields\nconst name = (body.Name || body.name || '').toString().trim();\nconst email = (body.Email || body.email || '').toString().trim();\nconst subject = (body.Subject || body.subject || '').toString().trim();\nconst message = (body.Message || body.message || '').toString().trim();\n\nif (!name)    errors.push('Name is required');\nif (!email)   errors.push('Email is required');\nif (!subject) errors.push('Subject is required');\nif (!message || message.length === 0) errors.push('Message body is required and must not be empty');\n\n// Email format validation\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (email && !emailRegex.test(email)) {\n  errors.push('Email must be a valid format (e.g. user@example.com)');\n}\n\nconst newItem = {};\nif ($input.item.binary) {\n  newItem.binary = $input.item.binary;\n}\n\nif (errors.length > 0) {\n  log.push(`[${new Date().toISOString()}] Validation FAILED: ${errors.join('; ')}`);\n  newItem.json = {\n    valid: false,\n    errors,\n    processing_log: log.join('\\n')\n  };\n  return newItem;\n}\n\n// Generate ticket ID  (TKT-YYYYMMDD-XXXX)\nconst now = new Date();\nconst datePart = now.toISOString().slice(0,10).replace(/-/g,'');\nconst rand = Math.random().toString(36).substr(2, 6).toUpperCase();\nconst ticketId = `TKT-${datePart}-${rand}`;\n\nlog.push(`[${new Date().toISOString()}] Validation passed \u2014 Ticket ID: ${ticketId}`);\n\nnewItem.json = {\n  valid: true,\n  ticket_id: ticketId,\n  timestamp: now.toISOString(),\n  Name: name,\n  Email: email,\n  Subject: subject,\n  Message: message,\n  processing_log: log.join('\\n')\n};\n\nreturn newItem;"
       },
       "id": "validate-input",
       "name": "Validate Input & Generate ID",
@@ -122,7 +128,9 @@
       "parameters": {
         "operation": "pdf",
         "binaryPropertyName": "Attachment",
-        "options": {}
+        "options": {
+          "joinPages": true
+        }
       },
       "id": "extract-pdf",
       "name": "Extract PDF Text",
@@ -137,7 +145,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ── Merge PDF text (if successful) into Message ──\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlet message = prev.Message;\n\n// Check if PDF extraction succeeded\nconst extractedText = $input.item.json?.data;\nconst extractionError = $input.item.json?.error;\n\nif (extractionError || !extractedText) {\n  log += `\\n[${new Date().toISOString()}] PDF extraction failed — processing without attachment`;\n} else {\n  log += `\\n[${new Date().toISOString()}] PDF text extracted successfully (${extractedText.length} chars)`;\n  message = message + '\\n\\n--- Attached PDF Content ---\\n' + extractedText;\n}\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: message,\n    processing_log: log\n  }\n};"
+        "jsCode": "// \u2500\u2500 Merge PDF text (if successful) into Message \u2500\u2500\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlet message = prev.Message;\n\n// Check if PDF extraction succeeded (handles .text or .data)\nconst extractedText = $input.item.json?.text || $input.item.json?.data || '';\nconst extractionError = $input.item.json?.error;\n\nif (extractionError || extractedText.length === 0) {\n  log += `\\n[${new Date().toISOString()}] PDF extraction returned no text \u2014 processing as text-only ticket`;\n} else {\n  log += `\\n[${new Date().toISOString()}] PDF text extracted successfully (${extractedText.length} chars)`;\n  message = message + '\\n\\n--- Attached PDF Content ---\\n' + extractedText;\n}\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: message,\n    processing_log: log\n  }\n};"
       },
       "id": "merge-pdf",
       "name": "Merge PDF into Ticket",
@@ -151,7 +159,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ── Pass through without PDF ──\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlog += `\\n[${new Date().toISOString()}] No attachment — proceeding with text-only ticket`;\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: prev.Message,\n    processing_log: log\n  }\n};"
+        "jsCode": "// \u2500\u2500 Pass through without PDF \u2500\u2500\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlog += `\\n[${new Date().toISOString()}] No attachment \u2014 proceeding with text-only ticket`;\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: prev.Message,\n    processing_log: log\n  }\n};"
       },
       "id": "no-attachment",
       "name": "No Attachment (Pass Through)",
@@ -172,13 +180,17 @@
         }
       },
       "id": "classification-agent",
-      "name": "Step 1 — Classification & Analysis",
+      "name": "Step 1 \u2014 Classification & Analysis",
       "position": [
         1328,
         208
       ],
       "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3.1
+      "typeVersion": 3.1,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -207,7 +219,10 @@
           "name": "OpenAI account"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -227,7 +242,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ── Merge classification result with ticket data ──\nlet ticket;\ntry { ticket = $('No Attachment (Pass Through)').item.json; } catch(e) {}\nif (!ticket) try { ticket = $('Merge PDF into Ticket').item.json; } catch(e) {}\nconst classification = $input.item.json.output || $input.item.json;\nlet log = ticket.processing_log || '';\n\nlog += `\\n[${new Date().toISOString()}] Classification complete — Category: ${classification.Category}, Urgency: ${classification.Urgency}, Confidence: ${classification.Confidence}`;\n\nreturn {\n  json: {\n    ticket_id: ticket.ticket_id,\n    timestamp: ticket.timestamp,\n    Name: ticket.Name,\n    Email: ticket.Email,\n    Subject: ticket.Subject,\n    Message: ticket.Message,\n    Category: classification.Category,\n    Urgency: classification.Urgency,\n    Sentiment: classification.Sentiment,\n    Confidence: classification.Confidence,\n    Summary: classification.Summary,\n    processing_log: log\n  }\n};"
+        "jsCode": "// \u2500\u2500 Merge classification result with ticket data \u2500\u2500\nlet ticket;\ntry { ticket = $('No Attachment (Pass Through)').item.json; } catch(e) {}\nif (!ticket) try { ticket = $('Merge PDF into Ticket').item.json; } catch(e) {}\nconst classification = $input.item.json?.output || $input.item.json || {};\nlet log = ticket.processing_log || '';\n\nif ($input.item.json?.error || !classification.Category) {\n  log += `\\n[${new Date().toISOString()}] Classification LLM failed: ${$input.item.json?.error?.message || 'Unknown error'}`;\n  return {\n    json: {\n      ...ticket,\n      Category: \"general\",\n      Urgency: \"medium\",\n      Sentiment: \"neutral\",\n      Confidence: 0.0,\n      Summary: \"Classification failed due to AI error.\",\n      processing_log: log,\n      error: true\n    }\n  };\n}\n\nlog += `\\n[${new Date().toISOString()}] Classification complete \u2014 Category: ${classification.Category}, Urgency: ${classification.Urgency}, Confidence: ${classification.Confidence}`;\n\nreturn {\n  json: {\n    ticket_id: ticket.ticket_id,\n    timestamp: ticket.timestamp,\n    Name: ticket.Name,\n    Email: ticket.Email,\n    Subject: ticket.Subject,\n    Message: ticket.Message,\n    Category: classification.Category || \"general\",\n    Urgency: classification.Urgency || \"medium\",\n    Sentiment: classification.Sentiment || \"neutral\",\n    Confidence: classification.Confidence || 0,\n    Summary: classification.Summary || \"Failed to parse summary\",\n    processing_log: log\n  }\n};"
       },
       "id": "merge-classification",
       "name": "Merge Classification Results",
@@ -241,19 +256,23 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=TICKET CONTEXT:\n- Ticket ID: {{ $json.ticket_id }}\n- Customer: {{ $json.Name }} ({{ $json.Email }})\n- Subject: {{ $json.Subject }}\n- Category: {{ $json.Category }}\n- Urgency: {{ $json.Urgency }}\n- Sentiment: {{ $json.Sentiment }}\n- Confidence: {{ $json.Confidence }}\n- Summary: {{ $json.Summary }}\n\nCUSTOMER MESSAGE:\n{{ $json.Message }}\n\nINSTRUCTIONS:\n1. Search the vector store for relevant knowledge base articles related to this ticket\n2. Draft a professional customer reply using the retrieved knowledge\n3. Match the tone to the customer sentiment ({{ $json.Sentiment }})\n4. Reference specific knowledge base articles/policies by name when found\n5. If no relevant knowledge is found (low similarity), add this note at the end: 'Note: No specific policy found — this response is based on general knowledge.'\n\nReturn ONLY the draft email response text.",
+        "text": "=TICKET CONTEXT:\n- Ticket ID: {{ $json.ticket_id }}\n- Customer: {{ $json.Name }} ({{ $json.Email }})\n- Subject: {{ $json.Subject }}\n- Category: {{ $json.Category }}\n- Urgency: {{ $json.Urgency }}\n- Sentiment: {{ $json.Sentiment }}\n- Confidence: {{ $json.Confidence }}\n- Summary: {{ $json.Summary }}\n\nCUSTOMER MESSAGE:\n{{ $json.Message }}\n\nINSTRUCTIONS:\n1. Search the vector store for relevant knowledge base articles related to this ticket\n2. Draft a professional customer reply using the retrieved knowledge\n3. Match the tone to the customer sentiment ({{ $json.Sentiment }})\n4. Reference specific knowledge base articles/policies by name when found (IMPORTANT: ALWAYS cite the filename from the metadata of retrieved chunks, e.g., '[Source: filename.md]')\n5. If no relevant knowledge is found (low similarity), add this note at the end: 'Note: No specific policy found \u2014 this response is based on general knowledge.'\n\nReturn ONLY the draft email response text.",
         "options": {
-          "systemMessage": "You are a professional customer support agent. Your task is to draft helpful, empathetic responses grounded in the company knowledge base.\n\nRules:\n1. Address the customer by name\n2. Reference specific company policies or documentation when available\n3. Match the urgency and tone appropriately\n4. Be concise but thorough\n5. End with a clear next step or offer of further assistance\n6. If the knowledge base doesn't contain relevant information, clearly note: 'Note: No specific policy found — this response is based on general knowledge.'"
+          "systemMessage": "You are a professional customer support agent. Your task is to draft helpful, empathetic responses grounded in the company knowledge base.\n\nRules:\n1. Address the customer by name\n2. Reference specific company policies or documentation when available\n3. Match the urgency and tone appropriately\n4. Be concise but thorough\n5. End with a clear next step or offer of further assistance\n6. If the knowledge base doesn't contain relevant information, clearly note: 'Note: No specific policy found \u2014 this response is based on general knowledge.'"
         }
       },
       "id": "rag-response",
-      "name": "Step 2 — RAG Draft Response",
+      "name": "Step 2 \u2014 RAG Draft Response",
       "position": [
         1888,
         208
       ],
       "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3.1
+      "typeVersion": 3.1,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -282,7 +301,10 @@
           "name": "OpenAI account"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -320,7 +342,10 @@
           "id": "gS8pf3aFkzyH62gC",
           "name": "Qdrant account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -340,7 +365,10 @@
           "name": "OpenAI account"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -367,12 +395,15 @@
           "name": "OpenAI account"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ── Build final ticket record before routing ──\nconst merged = $('Merge Classification Results').item.json;\nconst ragOutput = $input.item.json.output || $input.item.json.text || '';\nlet log = merged.processing_log || '';\n\nlog += `\\n[${new Date().toISOString()}] RAG draft response generated (${ragOutput.length} chars)`;\n\n// Determine status based on confidence\nconst confidence = parseFloat(merged.Confidence) || 0;\nlet status = 'processed';\nif (confidence < 0.6) {\n  status = 'needs-manual-review';\n  log += `\\n[${new Date().toISOString()}] LOW CONFIDENCE (${confidence}) — flagged for manual review`;\n}\n\n// Extract knowledge sources from the RAG response text\nlet knowledgeSources = 'N/A';\nconst sourceMatches = ragOutput.match(/(?:refund|shipping|account|password|privacy|gdpr|sla|api|rate|acceptable|subscription|troubleshooting|faq|policy|documentation)/gi);\nif (sourceMatches) {\n  knowledgeSources = [...new Set(sourceMatches.map(s => s.toLowerCase()))].join(', ');\n}\nif (ragOutput.includes('No specific policy found') || ragOutput.includes('general knowledge')) {\n  knowledgeSources = 'None — general knowledge response';\n}\n\nlog += `\\n[${new Date().toISOString()}] Final status: ${status}`;\n\nreturn {\n  json: {\n    ticket_id: merged.ticket_id,\n    timestamp: merged.timestamp,\n    Name: merged.Name,\n    Email: merged.Email,\n    Subject: merged.Subject,\n    Message: merged.Message,\n    Category: merged.Category,\n    Urgency: merged.Urgency,\n    Sentiment: merged.Sentiment,\n    Confidence: confidence,\n    Summary: merged.Summary,\n    draft_response: ragOutput,\n    knowledge_sources: knowledgeSources,\n    status: status,\n    processing_log: log\n  }\n};"
+        "jsCode": "// \u2500\u2500 Build final ticket record before routing \u2500\u2500\nconst merged = $('Merge Classification Results').item.json;\nlet log = merged.processing_log || '';\n\nlet ragOutput = \"\";\nif ($input.item.json?.error || merged.error) {\n  log += `\\n[${new Date().toISOString()}] RAG generation failed: ${$input.item.json?.error?.message || 'Unknown error or upstream error'}`;\n  ragOutput = \"We apologize, but we are currently experiencing high volume and our automated drafting failed. A human agent will review this ticket soon.\";\n} else {\n  ragOutput = $input.item.json.output || $input.item.json.text || '';\n  log += `\\n[${new Date().toISOString()}] RAG draft response generated (${ragOutput.length} chars)`;\n}\n\n// Determine status based on confidence\nconst confidence = parseFloat(merged.Confidence) || 0;\nlet status = (merged.error || $input.item.json?.error) ? 'failed' : 'processed';\nif (status !== 'failed' && confidence < 0.6) {\n  status = 'needs-manual-review';\n  log += `\\n[${new Date().toISOString()}] LOW CONFIDENCE (${confidence}) \u2014 flagged for manual review`;\n}\n\n// Extract knowledge sources from the RAG response text (look for markdown links or [Source: x])\nlet knowledgeSources = 'N/A';\nconst sourceMatches = ragOutput.match(/\\[Source:\\s*([^\\]]+)\\]/gi);\nif (sourceMatches) {\n  knowledgeSources = [...new Set(sourceMatches.map(s => s.replace(/\\[Source:\\s*|\\]/gi, '').trim()))].join(', ');\n} else if (ragOutput.includes('No specific policy found') || ragOutput.includes('general knowledge')) {\n  knowledgeSources = 'None \u2014 general knowledge response';\n} else {\n  // Fallback extraction\n  const fallbackMatches = ragOutput.match(/(?:refund|shipping|account|password|privacy|gdpr|sla|api|rate|acceptable|subscription|troubleshooting|faq|policy|documentation)/gi);\n  if (fallbackMatches) {\n     knowledgeSources = [...new Set(fallbackMatches.map(s => s.toLowerCase()))].join(', ');\n  }\n}\n\nlog += `\\n[${new Date().toISOString()}] Final status: ${status}`;\n\nreturn {\n  json: {\n    ticket_id: merged.ticket_id,\n    timestamp: merged.timestamp,\n    Name: merged.Name,\n    Email: merged.Email,\n    Subject: merged.Subject,\n    Message: merged.Message,\n    Category: merged.Category,\n    Urgency: merged.Urgency,\n    Sentiment: merged.Sentiment,\n    Confidence: confidence,\n    Summary: merged.Summary,\n    draft_response: ragOutput,\n    knowledge_sources: knowledgeSources,\n    status: status,\n    processing_log: log\n  }\n};"
       },
       "id": "build-final",
       "name": "Build Final Record & Determine Status",
@@ -499,11 +530,11 @@
       "parameters": {
         "sendTo": "ghilichkhaniali@gmail.com",
         "subject": "=[{{ $json.Urgency.toUpperCase() }}] {{ $json.Subject }} ({{ $json.ticket_id }})",
-        "message": "=<h2>🚨 Urgent Support Ticket Notification</h2>\n<table style=\"border-collapse:collapse;width:100%;font-family:Arial,sans-serif;\">\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Ticket ID</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.ticket_id }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Customer</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Name }} ({{ $json.Email }})</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Subject</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Subject }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Category</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Category }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Urgency</td><td style=\"padding:8px;border:1px solid #ddd;color:red;font-weight:bold;\">{{ $json.Urgency }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Sentiment</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Sentiment }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Confidence</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Confidence }}</td></tr>\n</table>\n<h3>AI Summary</h3>\n<p>{{ $json.Summary }}</p>\n<h3>Customer Message</h3>\n<p>{{ $json.Message }}</p>\n<h3>Draft Response</h3>\n<blockquote style=\"border-left:3px solid #ccc;padding:10px;margin:10px 0;background:#f9f9f9;\">{{ $json.draft_response }}</blockquote>\n<p style=\"color:#888;font-size:12px;\">Knowledge sources: {{ $json.knowledge_sources }}<br>Status: {{ $json.status }}</p>",
+        "message": "=<h2>\ud83d\udea8 Urgent Support Ticket Notification</h2>\n<table style=\"border-collapse:collapse;width:100%;font-family:Arial,sans-serif;\">\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Ticket ID</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.ticket_id }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Customer</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Name }} ({{ $json.Email }})</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Subject</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Subject }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Category</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Category }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Urgency</td><td style=\"padding:8px;border:1px solid #ddd;color:red;font-weight:bold;\">{{ $json.Urgency }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Sentiment</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Sentiment }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Confidence</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Confidence }}</td></tr>\n</table>\n<h3>AI Summary</h3>\n<p>{{ $json.Summary }}</p>\n<h3>Customer Message</h3>\n<p>{{ $json.Message }}</p>\n<h3>Draft Response</h3>\n<blockquote style=\"border-left:3px solid #ccc;padding:10px;margin:10px 0;background:#f9f9f9;\">{{ $json.draft_response }}</blockquote>\n<p style=\"color:#888;font-size:12px;\">Knowledge sources: {{ $json.knowledge_sources }}<br>Status: {{ $json.status }}</p>",
         "options": {}
       },
       "id": "gmail-urgent",
-      "name": "Gmail (Urgent — Full Details)",
+      "name": "Gmail (Urgent \u2014 Full Details)",
       "position": [
         2752,
         0
@@ -516,7 +547,11 @@
           "id": "qMHgzUojVANSANGX",
           "name": "Gmail account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -526,7 +561,7 @@
         "options": {}
       },
       "id": "gmail-medium",
-      "name": "Gmail (Medium — Brief Summary)",
+      "name": "Gmail (Medium \u2014 Brief Summary)",
       "position": [
         2752,
         352
@@ -539,7 +574,11 @@
           "id": "qMHgzUojVANSANGX",
           "name": "Gmail account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -729,7 +768,10 @@
           "name": "Google Sheets account"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -753,7 +795,7 @@
         "content": "## 1. Webhook Intake & Validation\n\n- POST `/webhook/support-ticket`\n- Validates: Name, Email (regex), Subject, Message\n- Generates unique Ticket ID (TKT-YYYYMMDD-XXXXX)\n- Returns 400 with error details on validation failure\n- Returns 200 with ticket summary on success"
       },
       "id": "note-intake",
-      "name": "Note — Intake",
+      "name": "Note \u2014 Intake",
       "position": [
         -224,
         64
@@ -763,11 +805,11 @@
     },
     {
       "parameters": {
-        "content": "## 2. Attachment Handling (Bonus)\n\n- Checks for binary PDF attachments\n- Extracts text from PDF using built-in extractor\n- `continueOnFail: true` — corrupted/scanned PDFs won't crash the pipeline\n- Appends extracted text to message body\n- Logs extraction success/failure",
+        "content": "## 2. Attachment Handling (Bonus)\n\n- Checks for binary PDF attachments\n- Extracts text from PDF using built-in extractor\n- `continueOnFail: true` \u2014 corrupted/scanned PDFs won't crash the pipeline\n- Appends extracted text to message body\n- Logs extraction success/failure",
         "height": 272
       },
       "id": "note-attachment",
-      "name": "Note — Attachment",
+      "name": "Note \u2014 Attachment",
       "position": [
         496,
         -176
@@ -777,12 +819,12 @@
     },
     {
       "parameters": {
-        "content": "## 3. Multi-Step AI Processing\n\n**Step 1 — Classification Agent:**\n- Subject + Message → OpenAI (gpt-4.1-nano, temp 0.1)\n- Structured JSON output: Category, Urgency, Sentiment, Confidence, Summary\n- Enforced via JSON schema output parser\n\n**Step 2 — RAG Draft Response:**\n- Classification context + customer message → OpenAI with Vector Store Tool\n- Retrieves relevant chunks from Qdrant (knowledge_base collection)\n- References specific KB articles in the draft\n- Low-confidence fallback notice included",
+        "content": "## 3. Multi-Step AI Processing\n\n**Step 1 \u2014 Classification Agent:**\n- Subject + Message \u2192 OpenAI (gpt-4.1-nano, temp 0.1)\n- Structured JSON output: Category, Urgency, Sentiment, Confidence, Summary\n- Enforced via JSON schema output parser\n\n**Step 2 \u2014 RAG Draft Response:**\n- Classification context + customer message \u2192 OpenAI with Vector Store Tool\n- Retrieves relevant chunks from Qdrant (knowledge_base collection)\n- References specific KB articles in the draft\n- Low-confidence fallback notice included",
         "height": 400,
         "width": 304
       },
       "id": "note-ai",
-      "name": "Note — AI Pipeline",
+      "name": "Note \u2014 AI Pipeline",
       "position": [
         1280,
         -272
@@ -792,12 +834,12 @@
     },
     {
       "parameters": {
-        "content": "## 4. Routing Logic\n\n- **Critical/High** → Full HTML email + Google Sheets\n- **Medium** → Brief email summary + Google Sheets\n- **Low** → Google Sheets only\n- **Confidence < 0.6** → status = 'needs-manual-review'",
+        "content": "## 4. Routing Logic\n\n- **Critical/High** \u2192 Full HTML email + Google Sheets\n- **Medium** \u2192 Brief email summary + Google Sheets\n- **Low** \u2192 Google Sheets only\n- **Confidence < 0.6** \u2192 status = 'needs-manual-review'",
         "height": 192,
         "width": 288
       },
       "id": "note-routing",
-      "name": "Note — Routing",
+      "name": "Note \u2014 Routing",
       "position": [
         2352,
         -128
@@ -812,7 +854,7 @@
         "width": 224
       },
       "id": "note-sheets",
-      "name": "Note — Storage",
+      "name": "Note \u2014 Storage",
       "position": [
         2992,
         -48
@@ -847,7 +889,6 @@
       }
     }
   ],
-  "pinData": {},
   "connections": {
     "Build Final Record & Determine Status": {
       "main": [
@@ -882,7 +923,7 @@
         ]
       ]
     },
-    "Gmail (Medium — Brief Summary)": {
+    "Gmail (Medium \u2014 Brief Summary)": {
       "main": [
         [
           {
@@ -893,7 +934,7 @@
         ]
       ]
     },
-    "Gmail (Urgent — Full Details)": {
+    "Gmail (Urgent \u2014 Full Details)": {
       "main": [
         [
           {
@@ -956,7 +997,7 @@
         [
           {
             "index": 0,
-            "node": "Step 2 — RAG Draft Response",
+            "node": "Step 2 \u2014 RAG Draft Response",
             "type": "main"
           }
         ]
@@ -967,7 +1008,7 @@
         [
           {
             "index": 0,
-            "node": "Step 1 — Classification & Analysis",
+            "node": "Step 1 \u2014 Classification & Analysis",
             "type": "main"
           }
         ]
@@ -978,7 +1019,7 @@
         [
           {
             "index": 0,
-            "node": "Step 1 — Classification & Analysis",
+            "node": "Step 1 \u2014 Classification & Analysis",
             "type": "main"
           }
         ]
@@ -989,7 +1030,7 @@
         [
           {
             "index": 0,
-            "node": "Step 1 — Classification & Analysis",
+            "node": "Step 1 \u2014 Classification & Analysis",
             "type": "ai_languageModel"
           }
         ]
@@ -1000,7 +1041,7 @@
         [
           {
             "index": 0,
-            "node": "Step 2 — RAG Draft Response",
+            "node": "Step 2 \u2014 RAG Draft Response",
             "type": "ai_languageModel"
           }
         ]
@@ -1028,7 +1069,7 @@
         ]
       ]
     },
-    "Step 1 — Classification & Analysis": {
+    "Step 1 \u2014 Classification & Analysis": {
       "main": [
         [
           {
@@ -1039,7 +1080,7 @@
         ]
       ]
     },
-    "Step 2 — RAG Draft Response": {
+    "Step 2 \u2014 RAG Draft Response": {
       "main": [
         [
           {
@@ -1055,7 +1096,7 @@
         [
           {
             "index": 0,
-            "node": "Step 1 — Classification & Analysis",
+            "node": "Step 1 \u2014 Classification & Analysis",
             "type": "ai_outputParser"
           }
         ]
@@ -1066,7 +1107,7 @@
         [
           {
             "index": 0,
-            "node": "Gmail (Urgent — Full Details)",
+            "node": "Gmail (Urgent \u2014 Full Details)",
             "type": "main"
           },
           {
@@ -1078,7 +1119,7 @@
         [
           {
             "index": 0,
-            "node": "Gmail (Urgent — Full Details)",
+            "node": "Gmail (Urgent \u2014 Full Details)",
             "type": "main"
           },
           {
@@ -1090,7 +1131,7 @@
         [
           {
             "index": 0,
-            "node": "Gmail (Medium — Brief Summary)",
+            "node": "Gmail (Medium \u2014 Brief Summary)",
             "type": "main"
           },
           {
@@ -1124,7 +1165,7 @@
         [
           {
             "index": 0,
-            "node": "Step 2 — RAG Draft Response",
+            "node": "Step 2 \u2014 RAG Draft Response",
             "type": "ai_tool"
           }
         ]
@@ -1153,22 +1194,44 @@
       ]
     }
   },
-  "active": false,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate",
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
     "saveManualExecutions": true,
     "saveExecutionProgress": true,
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "binaryMode": "separate"
   },
-  "versionId": "7ef6982b-9c3a-4c0f-ab34-7b82cb1d0493",
+  "staticData": null,
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "233bff778ba7736bd4acf453342be02da63af3db8bd1191bb0bb4a46d98ff861"
+    "templateCredsSetupCompleted": true
   },
-  "id": "xfQ8x3jS7iHBjLpz",
-  "tags": []
+  "pinData": {},
+  "versionId": "7ef6982b-9c3a-4c0f-ab34-7b82cb1d0493",
+  "activeVersionId": null,
+  "versionCounter": 410,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-04-04T10:55:48.453Z",
+      "createdAt": "2026-04-04T10:55:48.453Z",
+      "role": "workflow:owner",
+      "workflowId": "xfQ8x3jS7iHBjLpz",
+      "projectId": "043DcpFbCoJ2nkwR",
+      "project": {
+        "updatedAt": "2026-04-04T10:05:58.948Z",
+        "createdAt": "2026-04-04T09:59:49.593Z",
+        "id": "043DcpFbCoJ2nkwR",
+        "name": "admin admin <admin@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4390e2c0-cb6f-4d17-a7e1-854eb6d4675a"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }
