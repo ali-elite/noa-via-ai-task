@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  portal:
+    build: .
+    restart: always
+    ports:
+      - "80:8080" # Maps VM Port 80 to Portal Port 8080
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - N8N_BASE_URL=http://n8n:5678 # Internal network communication
+    depends_on:
+      - n8n
+
   n8n:
     image: docker.n8n.io/n8nio/n8n
     restart: always
@@ -9,9 +20,9 @@ services:
     environment:
       - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
       - N8N_PORT=5678
-      - N8N_PROTOCOL=https
+      - N8N_PROTOCOL=http
       - NODE_ENV=production
-      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - WEBHOOK_URL=http://${SUBDOMAIN}.${DOMAIN_NAME}/
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_API_KEY=${QDRANT_API_KEY}
@@ -23,7 +34,6 @@ services:
     restart: always
     ports:
       - "6333:6333"
-      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
 
