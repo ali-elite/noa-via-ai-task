@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support Portal | Premium Ticket Submission</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@400;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --primary: #6366f1;
@@ -33,7 +35,7 @@
             align-items: center;
             justify-content: center;
             padding: 2rem;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
                 radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
         }
@@ -52,8 +54,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         h1 {
@@ -85,7 +94,8 @@
             transition: color 0.3s ease;
         }
 
-        input, textarea {
+        input,
+        textarea {
             width: 100%;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--glass-border);
@@ -97,7 +107,8 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        input:focus, textarea:focus {
+        input:focus,
+        textarea:focus {
             outline: none;
             border-color: var(--primary);
             background: rgba(255, 255, 255, 0.08);
@@ -148,7 +159,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         #response-msg {
@@ -160,21 +173,46 @@
             text-align: center;
         }
 
-        .success { background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }
-        .error { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
 
         /* Responsive */
         @media (max-width: 640px) {
-            .row { grid-template-columns: 1fr; gap: 0; }
-            .container { padding: 2rem; }
+            .row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+
+            .container {
+                padding: 2rem;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>Support Portal</h1>
-        <p class="subtitle">Submit a request and our AI will assist you shortly.</p>
-        
+        <header style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+            <!-- Stylized Noavia Logo -->
+            <div
+                style="background: linear-gradient(135deg, #6366f1, #c084fc); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 1.5rem; font-family: 'Outfit';">
+                N</div>
+            <div>
+                <h1 style="font-size: 1.75rem; margin-bottom: 0;">Noavia AI Ticketing System</h1>
+                <p class="subtitle" style="margin-bottom: 0; font-size: 0.9rem;">Powered by Noavia Process Intelligence
+                </p>
+            </div>
+        </header>
+
         <form id="support-form">
             <div class="row">
                 <div class="form-group">
@@ -194,7 +232,8 @@
 
             <div class="form-group">
                 <label for="message">Message</label>
-                <textarea id="message" name="Message" rows="4" placeholder="Describe your issue in detail..." required></textarea>
+                <textarea id="message" name="Message" rows="3" placeholder="Describe your issue in detail..."
+                    required></textarea>
             </div>
 
             <div class="form-group">
@@ -205,16 +244,33 @@
 
             <div class="form-group">
                 <label for="supervisor-email">Supervisor Email (Direct Receipt)</label>
-                <input type="email" id="supervisor-email" name="supervisor-email" placeholder="manager@company.com" required>
+                <input type="email" id="supervisor-email" name="supervisor-email" placeholder="manager@company.com"
+                    required>
             </div>
 
-            <button type="submit" id="submit-btn">
+            <button type="submit" id="submit-btn" style="margin-top: 0.5rem;">
                 <span id="btn-text">Submit Request</span>
                 <div class="loader" id="btn-loader"></div>
             </button>
         </form>
 
         <div id="response-msg"></div>
+
+        <div
+            style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; text-align: center;">
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">ADMIN</p>
+            <a href="https://docs.google.com/spreadsheets/d/1hkOV9jvLJG7HPW6lyuJuMY9ju-9P_QgMzrLYV6ENaSE/edit?usp=sharing"
+                target="_blank"
+                style="display: inline-flex; align-items: center; gap: 0.5rem; color: #4ade80; text-decoration: none; font-size: 0.875rem; font-weight: 500; padding: 0.5rem 1rem; border: 1px solid rgba(74, 222, 128, 0.2); border-radius: 8px; background: rgba(34, 197, 94, 0.05); transition: all 0.3s ease;">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z" />
+                    <path
+                        d="M4.5 12h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1zm0-2h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1zm0-2h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1zm0-2h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1z" />
+                </svg>
+                View Tracking Google Sheets
+            </a>
+        </div>
     </div>
 
     <script>
@@ -228,7 +284,7 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             // UI State
             btnText.style.display = 'none';
             btnLoader.style.display = 'block';
@@ -237,7 +293,7 @@
 
             const formData = new FormData(form);
             // N8N receives files automatically when using FormData
-            
+
             try {
                 const response = await fetch(N8N_WEBHOOK_URL, {
                     method: 'POST',
@@ -265,4 +321,5 @@
         });
     </script>
 </body>
+
 </html>
