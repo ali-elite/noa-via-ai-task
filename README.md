@@ -1,62 +1,160 @@
-# Noavia AI Ticketing System
+# NOAVIA AI Support Ticket Pipeline
 
-An automated Support Ticket System built with [n8n](https://n8n.io/), [Qdrant](https://qdrant.tech/), and OpenAI. This project demonstrates how to answer support inquiries automatically using Retrieval-Augmented Generation (RAG) over a standard markdown knowledge base.
+This repository contains a local-first support ticket system using FastAPI, n8n, OpenAI, and Qdrant.
 
-[![Submit a Ticket](https://img.shields.io/badge/Submit-Ticket-6366f1?style=for-the-badge)](https://noavia.alielite.dev)
-[![View Logs](https://img.shields.io/badge/View-Google%20Sheets-4ade80?style=for-the-badge)](https://docs.google.com/spreadsheets/d/1hkOV9jvLJG7HPW6lyuJuMY9ju-9P_QgMzrLYV6ENaSE/edit?gid=0#gid=0)
+- Intake endpoint: `/webhook/support-ticket` (served by `src/app.py`)
+- Main workflow file: `support_ticket_pipline_main.json`
+- Knowledge base docs: `data/knowledge_base/*.md`
 
----
+![Support Ticket Flow](docs/ticket-flow.png)
 
-## Architecture Overview
+## Architecture
 
-The system is designed for high performance, reliability, and ease of deployment.
+1. **FastAPI portal/proxy (`src/app.py`)**
+   - Serves the form UI at `/`
+   - Proxies multipart ticket payloads to n8n at `${N8N_BASE_URL}/webhook/support-ticket`
+   - Runs knowledge-base ingestion on startup
+2. **n8n workflow orchestration (`support_ticket_pipline_main.json`)**
+   - Validation -> PDF extraction (optional) -> classification -> RAG draft -> routing -> logging
+3. **Qdrant vector store**
+   - Stores embeddings for markdown knowledge base chunks in collection `knowledge_base`
 
-![Support Ticket Flow](./docs/ticket-flow.png)
+### Key architecture decisions (and why)
 
-1. **Self-Hosted n8n Orchestration**: Acts as the central brain, coordinating between the vector store, AI agents, and communication channels (Gmail, Google Sheets).
-2. **FastAPI Webhook Proxy**: A high-performance Python bridge that handles incoming ticket submissions (including PDF metadata) and proxies them into n8n's event-driven pipeline.
-3. **Traefik Ingress**: Automates SSL/TLS certificates via Let's Encrypt for securely exposing the portal, n8n, and Qdrant under professional subdomains.
-4. **Qdrant Vector DB**: A production-ready vector database used for context-aware retrieval.
+- **FastAPI in front of n8n (`src/app.py`)**: keeps intake/web UX and orchestration concerns separated, while preserving multipart payload forwarding for optional PDF handling.
+- **Single orchestrated workflow (`support_ticket_pipline_main.json`)**: keeps validation, AI processing, routing, and logging visible in one execution graph for debugging and interview walkthroughs.
+- **Startup ingestion in app lifecycle**: ensures the KB is present before ticket processing, reducing first-run retrieval failures in local environments.
+- **Containerized local stack (`docker-compose.yml`)**: reproducible setup for `portal` + `n8n` + `qdrant`, with env-based secret wiring instead of hardcoded keys.
 
----
+## Local Development Quick Start
 
-## AI Output Validation
+### 1) Prerequisites
 
-To ensure the AI categorizes and summarizes tickets with 100% reliability for downstream processing, we implement:
+- Docker + Docker Compose
+- OpenAI API key
 
-- **Structured Output Parser Node**: We enforce a strict JSON schema at the orchestration level. The n8n Classification Agent is required to output:
-  - `Category`: (String)
-  - `Urgency`: (critical, high, medium, low)
-  - `Sentiment`: (String)
-  - `Confidence`: (Float 0-1)
-  - `Summary`: (String)
-- **Schema Enforcement**: This guarantees that n8n's logic (like `Switch` nodes for urgent routing) never fails due to malformed or conversational "garbage" output from the LLM. If confidence is `< 0.6`, the system automatically flags the ticket for manual human review.
+### 2) Configure environment
 
----
+```zsh
+cp .env.example .env
+```
 
-## RAG Implementation
+Set at minimum in `.env`:
 
-Our Retrieval-Augmented Generation strategy focuses on grounding the AI in company-specific ground truth documents.
+- `OPENAI_API_KEY=...`
+- `QDRANT_API_KEY=...` (optional but recommended; compose passes it to both services)
 
-1. **Chunking Strategy**: We use `RecursiveCharacterTextSplitter` with a chunk size of 1000 and an overlap of 150. This balance allows the system to retain enough context (like specific policy headers) while ensuring the AI can focus on relevant paragraphs for specific questions.
-2. **Embedding Model**: We use OpenAI's `text-embedding-3-small` model (1536 dimensions) for its high-performance retrieval-accuracy-to-cost ratio.
-3. **Retrieval Approach**: We implement nearest-neighbor search via **Qdrant**. The RAG Agent node in n8n uses a `VectorStoreTool` to pull exactly the top-3 most similar chunks before drafting a response.
-4. **Low-Similarity Guardrail**: When retrieval quality is low (top similarity score below `0.45`, or no relevant chunk is returned), the draft explicitly includes: `Note: No specific policy found — this response is based on general knowledge.`
+### 3) Start services
 
----
+```zsh
+docker compose up -d --build
+```
 
-## Future Improvements
+Local endpoints:
 
-With more time, the following features would enhance the system:
-- **Hybrid Search**: Combining semantic search with BM25 keyword matching for better handling of technical product codes.
-- **Caching Layer**: Implementing Redis to cache common FAQ responses, reducing LLM calls and latency.
-- **Multimodal Support**: Enabling the AI to perform OCR on PDF attachments natively to extract even more contextual data.
-- **A/B Prompt Testing**: An automated framework to test different system prompts against historical "perfect" human answers to measure response quality drifts.
+- Portal: `http://localhost:8080`
+- n8n UI: `http://localhost:5678`
+- Qdrant: `http://localhost:6333`
 
----
+### 4) Import workflow in n8n
 
-## Quick Start
+1. Open `http://localhost:5678`
+2. Import `support_ticket_pipline_main.json`
+3. Verify webhook node path is `support-ticket`
 
-1. Copy `.env.example` to `.env` and add your `OPENAI_API_KEY`.
-2. Run `docker-compose up -d --build`.
-3. The system will automatically ingest documents from `data/knowledge_base` into Qdrant on startup.
+### 5) Configure n8n credentials (required)
+
+Set credentials used by nodes in `support_ticket_pipline_main.json`:
+
+- `OpenAI account` (`openAiApi`)
+- `Qdrant account` (`qdrantApi`)
+- Gmail OAuth2 credential (for urgent/medium email branches)
+- Google Sheets OAuth2 credential (for ticket logging)
+
+After credentials are set, open each integration node once and confirm credential binding is valid.
+
+### 6) Activate and test
+
+Activate the workflow, then submit from UI or send a test payload:
+
+```zsh
+curl -X POST "http://localhost:8080/webhook/support-ticket" \
+  -F "Name=Jane Doe" \
+  -F "Email=jane@example.com" \
+  -F "Subject=Refund request" \
+  -F "Message=I was charged twice for my subscription."
+```
+
+## Current AI + RAG Behavior
+
+### AI output validation
+
+- `Step 1 - Classification & Analysis` enforces structured output via `Structured Output Parser`
+- Required fields: `Category`, `Urgency`, `Sentiment`, `Confidence`, `Summary`
+- Status is set to `needs-manual-review` when classification confidence is `< 0.6`
+
+**Approach and why**
+
+- **Approach**: force strict, machine-parseable classification JSON before routing logic executes.
+- **Why**: prevents downstream branch failures caused by free-form LLM output (for example, malformed urgency labels that would break `Switch`/`IF` logic).
+- **Approach**: apply a confidence gate (`< 0.6`) to override normal processing status.
+- **Why**: low-certainty classifications are explicitly surfaced for human review instead of silently auto-resolving.
+
+### RAG ingestion details (`src/ingest_to_qdrant.py`)
+
+- Source files: `data/knowledge_base/*.md`
+- Split strategy:
+  - `MarkdownHeaderTextSplitter` on `#`, `##`, `###`
+  - `RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)`
+- Embedding model: `text-embedding-3-small` (1536 dimensions)
+- Collection name: `knowledge_base`
+- Metadata added per chunk: `source`, `filename`
+
+**Why this chunking/embedding setup**
+
+- Header-aware splitting preserves document structure (policy section context), then recursive splitting keeps chunk size stable for embedding/search efficiency.
+- `text-embedding-3-small` is used as a practical quality/cost tradeoff for local interview-scale retrieval.
+
+### RAG retrieval details (workflow)
+
+- `Qdrant Vector Store` node uses top `3` chunks (`topK: 3`)
+- Step 2 prompt instructs fallback note when retrieval is low-confidence or empty:
+  - `Note: No specific policy found - this response is based on general knowledge.`
+
+**Retrieval approach and why**
+
+- Top-3 retrieval keeps prompt context focused while still giving enough evidence for policy-grounded responses.
+- Source citation format (`[Source: filename.md]`) is required in the draft so reviewers can verify grounding quickly.
+- Fallback note is explicitly required when retrieval quality is weak, so generated replies stay transparent about uncertainty.
+
+## Routing and Storage
+
+From `Urgency Router` in `support_ticket_pipline_main.json`:
+
+- `critical/high` -> detailed Gmail + Google Sheets
+- `medium` -> brief Gmail + Google Sheets
+- `low` -> Google Sheets only
+
+Google Sheets row includes ticket info, AI fields, draft response, status, knowledge sources, and processing log.
+
+## Useful Commands
+
+Re-run ingestion manually from the running `portal` container:
+
+```zsh
+docker compose exec portal uv run python -m src.ingest_to_qdrant
+```
+
+Stop all services:
+
+```zsh
+docker compose down
+```
+
+## What I Would Improve With More Time
+
+- Add a normalization node before final status calculation to standardize retrieval score shape from vector output payloads.
+- Add replayable regression fixtures (sample ticket payloads + expected route/status) for workflow-level smoke tests.
+- Add a dedicated human-review queue destination (separate sheet tab or Slack channel) for `needs-manual-review` tickets.
+- Add OCR coverage for scanned/image-only PDFs to improve attachment reliability.
+
