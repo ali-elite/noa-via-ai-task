@@ -7,7 +7,7 @@ An automated Support Ticket System built with [n8n](https://n8n.io/), [Qdrant](h
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 The system is designed for high performance, reliability, and ease of deployment.
 
@@ -20,7 +20,7 @@ The system is designed for high performance, reliability, and ease of deployment
 
 ---
 
-## 🧠 AI Output Validation
+## AI Output Validation
 
 To ensure the AI categorizes and summarizes tickets with 100% reliability for downstream processing, we implement:
 
@@ -34,17 +34,18 @@ To ensure the AI categorizes and summarizes tickets with 100% reliability for do
 
 ---
 
-## 📚 RAG Implementation
+## RAG Implementation
 
 Our Retrieval-Augmented Generation strategy focuses on grounding the AI in company-specific ground truth documents.
 
 1. **Chunking Strategy**: We use `RecursiveCharacterTextSplitter` with a chunk size of 1000 and an overlap of 150. This balance allows the system to retain enough context (like specific policy headers) while ensuring the AI can focus on relevant paragraphs for specific questions.
 2. **Embedding Model**: We use OpenAI's `text-embedding-3-small` model (1536 dimensions) for its high-performance retrieval-accuracy-to-cost ratio.
-3. **Retrieval Approach**: We implement nearest-neighbor search via **Qdrant**. The RAG Agent node in n8n uses a `VectorStoreTool` to pull the top-3 most similar chunks before drafting a response to the user.
+3. **Retrieval Approach**: We implement nearest-neighbor search via **Qdrant**. The RAG Agent node in n8n uses a `VectorStoreTool` to pull exactly the top-3 most similar chunks before drafting a response.
+4. **Low-Similarity Guardrail**: When retrieval quality is low (top similarity score below `0.45`, or no relevant chunk is returned), the draft explicitly includes: `Note: No specific policy found — this response is based on general knowledge.`
 
 ---
 
-## 🔮 Future Improvements
+## Future Improvements
 
 With more time, the following features would enhance the system:
 - **Hybrid Search**: Combining semantic search with BM25 keyword matching for better handling of technical product codes.
@@ -54,9 +55,8 @@ With more time, the following features would enhance the system:
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 1. Copy `.env.example` to `.env` and add your `OPENAI_API_KEY`.
 2. Run `docker-compose up -d --build`.
 3. The system will automatically ingest documents from `data/knowledge_base` into Qdrant on startup.
-4. Access the portal at: `https://noavia.alielite.dev`
