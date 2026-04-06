@@ -1,0 +1,1142 @@
+{
+  "name": "AI-Powered Support Ticket Pipeline (RAG)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "support-ticket",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b60ef8b7-1a2b-481a-bd47-65dc81977ec0",
+      "name": "Webhook (Intake)",
+      "position": [
+        -704,
+        480
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "webhookId": "93b8c3a8-6e63-4e79-91ab-b35caa15c6c2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Validate & Generate Ticket ID\nconst body = $input.item.json.body || $input.item.json;\nconst errors = [];\nconst log = [];\n\nlog.push(`[${new Date().toISOString()}] Ticket received`);\n\n// Required fields\nconst name = (body.Name || body.name || '').toString().trim();\nconst email = (body.Email || body.email || '').toString().trim();\nconst subject = (body.Subject || body.subject || '').toString().trim();\nconst message = (body.Message || body.message || '').toString().trim();\n\n\n\nif (!name)    errors.push('Name is required');\nif (!email)   errors.push('Email is required');\nif (!subject) errors.push('Subject is required');\nif (!message || message.length === 0) errors.push('Message body is required and must not be empty');\n\n// Email format validation\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nif (email && !emailRegex.test(email)) {\n  errors.push('Email must be a valid format (e.g. user@example.com)');\n}\n\n\nconst newItem = {};\nif ($input.item.binary) {\n  newItem.binary = $input.item.binary;\n}\n\nif (errors.length > 0) {\n  log.push(`[${new Date().toISOString()}] Validation FAILED: ${errors.join('; ')}`);\n  newItem.json = {\n    valid: false,\n    errors,\n    processing_log: log.join('\\n')\n  };\n  return newItem;\n}\n\n// Generate ticket ID  (TKT-YYYYMMDD-XXXX)\nconst now = new Date();\nconst datePart = now.toISOString().slice(0,10).replace(/-/g,'');\nconst rand = Math.random().toString(36).substr(2, 6).toUpperCase();\nconst ticketId = `TKT-${datePart}-${rand}`;\n\nlog.push(`[${new Date().toISOString()}] Validation passed - Ticket ID: ${ticketId}`);\n\nnewItem.json = {\n  valid: true,\n  ticket_id: ticketId,\n  timestamp: now.toISOString(),\n  Name: name,\n  Email: email,\n  Subject: subject,\n  Message: message,\n  processing_log: log.join('\\n')\n};\n\nreturn newItem;"
+      },
+      "id": "06160a9a-74fc-4aa4-b890-8796afcae6cf",
+      "name": "Validate Input & Generate ID",
+      "position": [
+        -448,
+        480
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "id": "9778ebdc-cfb5-4207-b3a8-c3d580c12092",
+      "name": "IF Valid",
+      "position": [
+        -208,
+        464
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: $json.errors }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "c0c18e00-b21f-4e08-b7ae-86cc25763da3",
+      "name": "Respond 400 (Validation Error)",
+      "position": [
+        176,
+        688
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "attachment-check",
+              "leftValue": "={{ $('Webhook (Intake)').item.binary?.Attachment?.mimeType || '' }}",
+              "operator": {
+                "operation": "equals",
+                "type": "string"
+              },
+              "rightValue": "application/pdf"
+            }
+          ],
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "id": "d09c8171-ff7a-442f-b182-ca5440febe8f",
+      "name": "IF Attachment",
+      "position": [
+        48,
+        384
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Attachment",
+        "options": {
+          "joinPages": true
+        }
+      },
+      "id": "f6387592-d943-461c-8582-1b73f767fe28",
+      "name": "Extract PDF Text",
+      "position": [
+        304,
+        256
+      ],
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ── Merge PDF text (if successful) into Message ──\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlet message = prev.Message;\n\n// Check if PDF extraction succeeded (handles .text or .data)\nconst extractedText = $input.item.json?.text || $input.item.json?.data || '';\nconst extractionError = $input.item.json?.error;\n\nif (extractionError || extractedText.length === 0) {\n  log += `\\n[${new Date().toISOString()}] PDF extraction returned no text — processing as text-only ticket`;\n} else {\n  log += `\\n[${new Date().toISOString()}] PDF text extracted successfully (${extractedText.length} chars)`;\n  message = message + '\\n\\n--- Attached PDF Content ---\\n' + extractedText;\n}\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: message,\n    processing_log: log\n  }\n};"
+      },
+      "id": "6714c007-ca1d-485a-85b8-55e7bceaa2d4",
+      "name": "Merge PDF into Ticket",
+      "position": [
+        576,
+        256
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ── Pass through without PDF ──\nconst prev = $('Validate Input & Generate ID').item.json;\nlet log = prev.processing_log || '';\nlog += `\\n[${new Date().toISOString()}] No attachment — proceeding with text-only ticket`;\n\nreturn {\n  json: {\n    ticket_id: prev.ticket_id,\n    timestamp: prev.timestamp,\n    Name: prev.Name,\n    Email: prev.Email,\n    Subject: prev.Subject,\n    Message: prev.Message,\n    processing_log: log\n  }\n};"
+      },
+      "id": "c2b0f15a-5934-433e-a54f-1c86f892b0c7",
+      "name": "No Attachment (Pass Through)",
+      "position": [
+        432,
+        384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Subject: {{ $json.Subject }}\n\nMessage: {{ $json.Message }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a precise ticket classification engine. Analyze the customer support ticket below and return a JSON object with EXACTLY these fields:\n\n- \"Category\": one of [\"billing\", \"technical\", \"account\", \"product\", \"shipping\", \"general\"]\n- \"Urgency\": one of [\"critical\", \"high\", \"medium\", \"low\"]\n- \"Sentiment\": one of [\"angry\", \"frustrated\", \"neutral\", \"positive\"]\n- \"Confidence\": a number between 0 and 1 reflecting how confident you are in your classification\n- \"Summary\": a 1-2 sentence summary of the core issue\n\nClassification rules:\n- critical: data loss, security breach, complete service outage\n- high: service degradation, payment failures, account locked\n- medium: feature requests, partial issues, billing questions\n- low: general inquiries, feedback, information requests\n\nReturn ONLY the JSON object. No extra text."
+        }
+      },
+      "id": "71a5d7a5-a527-4202-afdb-f0a6bddb3dde",
+      "name": "Step 1 — Classification & Analysis",
+      "position": [
+        800,
+        384
+      ],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "392d7804-ce6a-4530-a4dc-93b560c149da",
+      "name": "OpenAI (Classification)",
+      "position": [
+        640,
+        656
+      ],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "6SeNpLJRVCjpphJM",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"Category\":{\"type\":\"string\",\"enum\":[\"billing\",\"technical\",\"account\",\"product\",\"shipping\",\"general\"]},\"Urgency\":{\"type\":\"string\",\"enum\":[\"critical\",\"high\",\"medium\",\"low\"]},\"Sentiment\":{\"type\":\"string\",\"enum\":[\"angry\",\"frustrated\",\"neutral\",\"positive\"]},\"Confidence\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},\"Summary\":{\"type\":\"string\"}},\"required\":[\"Category\",\"Urgency\",\"Sentiment\",\"Confidence\",\"Summary\"]}",
+        "autoFix": true
+      },
+      "id": "826f4f94-27d0-4c87-a424-1c9f58747f02",
+      "name": "Structured Output Parser",
+      "position": [
+        864,
+        688
+      ],
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ── Merge classification result with ticket data ──\nlet ticket;\ntry { ticket = $('No Attachment (Pass Through)').item.json; } catch(e) {}\nif (!ticket) try { ticket = $('Merge PDF into Ticket').item.json; } catch(e) {}\nconst classification = $input.item.json?.output || $input.item.json || {};\nlet log = ticket.processing_log || '';\n\nif ($input.item.json?.error || !classification.Category) {\n  log += `\\n[${new Date().toISOString()}] Classification LLM failed: ${$input.item.json?.error?.message || 'Unknown error'}`;\n  return {\n    json: {\n      ...ticket,\n      Category: \"general\",\n      Urgency: \"medium\",\n      Sentiment: \"neutral\",\n      Confidence: 0.0,\n      Summary: \"Classification failed due to AI error.\",\n      processing_log: log,\n      error: true\n    }\n  };\n}\n\nlog += `\\n[${new Date().toISOString()}] Classification complete — Category: ${classification.Category}, Urgency: ${classification.Urgency}, Confidence: ${classification.Confidence}`;\n\nreturn {\n  json: {\n    ticket_id: ticket.ticket_id,\n    timestamp: ticket.timestamp,\n    Name: ticket.Name,\n    Email: ticket.Email,\n    Subject: ticket.Subject,\n    Message: ticket.Message,\n    Category: classification.Category || \"general\",\n    Urgency: classification.Urgency || \"medium\",\n    Sentiment: classification.Sentiment || \"neutral\",\n    Confidence: classification.Confidence || 0,\n    Summary: classification.Summary || \"Failed to parse summary\",\n    processing_log: log\n  }\n};"
+      },
+      "id": "bc438fa2-cbb8-4acc-b12b-7e2172ec876b",
+      "name": "Merge Classification Results",
+      "position": [
+        1104,
+        384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ── Build final ticket record before routing ──\nconst merged = $('Merge Classification Results').item.json;\nlet log = merged.processing_log || '';\n\nlet ragOutput = \"\";\nif ($input.item.json?.error || merged.error) {\n  log += `\\n[${new Date().toISOString()}] RAG generation failed: ${$input.item.json?.error?.message || 'Unknown error or upstream error'}`;\n  ragOutput = \"We apologize, but we are currently experiencing high volume and our automated drafting failed. A human agent will review this ticket soon.\";\n} else {\n  ragOutput = $input.item.json.output || $input.item.json.text || '';\n  log += `\\n[${new Date().toISOString()}] RAG draft response generated (${ragOutput.length} chars)`;\n}\n\n// Determine status based on confidence\nconst confidence = parseFloat(merged.Confidence) || 0;\nlet status = (merged.error || $input.item.json?.error) ? 'failed' : 'processed';\nif (status !== 'failed' && confidence < 0.6) {\n  status = 'needs-manual-review';\n  log += `\\n[${new Date().toISOString()}] LOW CONFIDENCE (${confidence}) — flagged for manual review`;\n}\n\n// Extract knowledge sources from the RAG response text (look for markdown links or [Source: x])\nlet knowledgeSources = 'N/A';\nconst sourceMatches = ragOutput.match(/\\[Source:\\s*([^\\]]+)\\]/gi);\nif (sourceMatches) {\n  knowledgeSources = [...new Set(sourceMatches.map(s => s.replace(/\\[Source:\\s*|\\]/gi, '').trim()))].join(', ');\n} else if (ragOutput.includes('No specific policy found') || ragOutput.includes('general knowledge')) {\n  knowledgeSources = 'None — general knowledge response';\n} else {\n  // Fallback extraction\n  const fallbackMatches = ragOutput.match(/(?:refund|shipping|account|password|privacy|gdpr|sla|api|rate|acceptable|subscription|troubleshooting|faq|policy|documentation)/gi);\n  if (fallbackMatches) {\n     knowledgeSources = [...new Set(fallbackMatches.map(s => s.toLowerCase()))].join(', ');\n  }\n}\n\nlog += `\\n[${new Date().toISOString()}] Final status: ${status}`;\n\nreturn {\n  json: {\n    ticket_id: merged.ticket_id,\n    timestamp: merged.timestamp,\n    Name: merged.Name,\n    Email: merged.Email,\n    Subject: merged.Subject,\n    Message: merged.Message,\n    Category: merged.Category,\n    Urgency: merged.Urgency,\n    Sentiment: merged.Sentiment,\n    Confidence: confidence,\n    Summary: merged.Summary,\n    draft_response: ragOutput,\n    knowledge_sources: knowledgeSources,\n    status: status,\n    processing_log: log\n  }\n};"
+      },
+      "id": "4cf7e14c-3546-4f50-915b-4e4e5b1005c8",
+      "name": "Build Final Record & Determine Status",
+      "position": [
+        1648,
+        384
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.Urgency }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "critical"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "Critical"
+            },
+            {
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.Urgency }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "high"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "High"
+            },
+            {
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.Urgency }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "medium"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "Medium"
+            },
+            {
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.Urgency }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "low"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                }
+              },
+              "renameOutput": true,
+              "outputKey": "Low"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "f23e9da3-29ca-4d2e-a7e2-ccf430bad373",
+      "name": "Urgency Router",
+      "position": [
+        1952,
+        384
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ghilichkhaniali@gmail.com",
+        "subject": "=[{{ $json.Urgency.toUpperCase() }}] {{ $json.Subject }} ({{ $json.ticket_id }})",
+        "message": "=<h2>🚨 Urgent Support Ticket Notification</h2>\n<table style=\"border-collapse:collapse;width:100%;font-family:Arial,sans-serif;\">\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Ticket ID</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.ticket_id }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Customer</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Name }} ({{ $json.Email }})</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Subject</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Subject }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Category</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Category }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Urgency</td><td style=\"padding:8px;border:1px solid #ddd;color:red;font-weight:bold;\">{{ $json.Urgency }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Sentiment</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Sentiment }}</td></tr>\n<tr><td style=\"padding:8px;border:1px solid #ddd;font-weight:bold;\">Confidence</td><td style=\"padding:8px;border:1px solid #ddd;\">{{ $json.Confidence }}</td></tr>\n</table>\n<h3>AI Summary</h3>\n<p>{{ $json.Summary }}</p>\n<h3>Customer Message</h3>\n<p>{{ $json.Message }}</p>\n<h3>Draft Response</h3>\n<blockquote style=\"border-left:3px solid #ccc;padding:10px;margin:10px 0;background:#f9f9f9;\">{{ $json.draft_response }}</blockquote>\n<p style=\"color:#888;font-size:12px;\">Knowledge sources: {{ $json.knowledge_sources }}<br>Status: {{ $json.status }}</p>",
+        "options": {}
+      },
+      "id": "7899573d-9da3-407c-b719-d953f0ff8923",
+      "name": "Gmail (Urgent — Full Details)",
+      "position": [
+        2256,
+        176
+      ],
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "webhookId": "bd8677cf-941d-4358-8aa1-af66a0136aee",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qMHgzUojVANSANGX",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "=ghilichkhaniali@gmail.com",
+        "subject": "=[MEDIUM] {{ $json.Subject }} ({{ $json.ticket_id }})",
+        "message": "=<h3>Support Ticket Summary</h3>\n<p><strong>Ticket:</strong> {{ $json.ticket_id }}<br>\n<strong>Customer:</strong> {{ $json.Name }}<br>\n<strong>Category:</strong> {{ $json.Category }}<br>\n<strong>Urgency:</strong> {{ $json.Urgency }}<br>\n<strong>Summary:</strong> {{ $json.Summary }}</p>\n<p style=\"color:#888;font-size:12px;\">Full details logged to tracking sheet.</p>",
+        "options": {}
+      },
+      "id": "27b95785-f81e-4ddb-a2f3-ac5d42b1bd1a",
+      "name": "Gmail (Medium — Brief Summary)",
+      "position": [
+        2256,
+        528
+      ],
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "webhookId": "8df89e53-eda9-4d89-a0eb-ae997dde39b3",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qMHgzUojVANSANGX",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1hkOV9jvLJG7HPW6lyuJuMY9ju-9P_QgMzrLYV6ENaSE/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hkOV9jvLJG7HPW6lyuJuMY9ju-9P_QgMzrLYV6ENaSE/edit#gid=0",
+          "mode": "list",
+          "value": "gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "AI Summary": "={{ $('Build Final Record & Determine Status').item.json.Summary }}",
+            "Category": "={{ $('Build Final Record & Determine Status').item.json.Category }}",
+            "Confidence": "={{ $('Build Final Record & Determine Status').item.json.Confidence }}",
+            "Draft Response": "={{ $('Build Final Record & Determine Status').item.json.draft_response }}",
+            "Email": "={{ $('Build Final Record & Determine Status').item.json.Email }}",
+            "Knowledge Sources": "={{ $('Build Final Record & Determine Status').item.json.knowledge_sources }}",
+            "Name": "={{ $('Build Final Record & Determine Status').item.json.Name }}",
+            "Processing Log": "={{ $('Build Final Record & Determine Status').item.json.processing_log }}",
+            "Sentiment": "={{ $('Build Final Record & Determine Status').item.json.Sentiment }}",
+            "Status": "={{ $('Build Final Record & Determine Status').item.json.status }}",
+            "Subject": "={{ $('Build Final Record & Determine Status').item.json.Subject }}",
+            "Ticket ID": "={{ $('Build Final Record & Determine Status').item.json.ticket_id }}",
+            "Timestamp": "={{ $('Build Final Record & Determine Status').item.json.timestamp }}",
+            "Urgency": "={{ $('Build Final Record & Determine Status').item.json.Urgency }}"
+          },
+          "matchingColumns": [
+            "Ticket ID"
+          ],
+          "schema": [
+            {
+              "id": "Ticket ID",
+              "displayName": "Ticket ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Summary",
+              "displayName": "AI Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Knowledge Sources",
+              "displayName": "Knowledge Sources",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Processing Log",
+              "displayName": "Processing Log",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "97c4f51f-287e-4e47-8e1f-9c98505bea6b",
+      "name": "Google Sheets (Log Ticket)",
+      "position": [
+        2528,
+        384
+      ],
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "executeOnce": false,
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "jRmYIG2SEBi2rqtc",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ success: true, ticket_id: $('Build Final Record & Determine Status').item.json.ticket_id, status: $('Build Final Record & Determine Status').item.json.status, urgency: $('Build Final Record & Determine Status').item.json.Urgency, category: $('Build Final Record & Determine Status').item.json.Category }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "43bdf9d2-4ad8-48e6-89eb-6ef2f0de19f9",
+      "name": "Respond 200 (Success)",
+      "position": [
+        2784,
+        384
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "content": "## 1. Webhook Intake & Validation\n\n- POST `/webhook/support-ticket`\n- Validates: Name, Email (regex), Subject, Message\n- Generates unique Ticket ID (TKT-YYYYMMDD-XXXXX)\n- Returns 400 with error details on validation failure\n- Returns 200 with ticket summary on success"
+      },
+      "id": "e04b1643-a782-4244-812e-0fd550396d76",
+      "name": "Note — Intake",
+      "position": [
+        -720,
+        240
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 2. Attachment Handling (Bonus)\n\n- Checks for binary PDF attachments\n- Extracts text from PDF using built-in extractor\n- `continueOnFail: true` — corrupted/scanned PDFs won't crash the pipeline\n- Appends extracted text to message body\n- Logs extraction success/failure",
+        "height": 272
+      },
+      "id": "8665275e-26e1-4a2c-a81c-f8e00090782b",
+      "name": "Note — Attachment",
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 3. Multi-Step AI Processing\n\n**Step 1 — Classification Agent:**\n- Subject + Message → OpenAI (gpt-4o-mini, temp 0.1)\n- Structured JSON output: Category, Urgency, Sentiment, Confidence, Summary\n- Enforced via JSON schema output parser\n\n**Step 2 — RAG Draft Response:**\n- Classification context + customer message → OpenAI (gpt-4.1-mini) with Vector Store Tool\n- Retrieves EXACTLY top-3 chunks from Qdrant (knowledge_base collection)\n- References specific KB articles in the draft\n- If top similarity < 0.45 (or no relevant chunks), include the general-knowledge fallback note",
+        "height": 256,
+        "width": 624
+      },
+      "id": "c8b70231-34dd-41c5-ac92-ca2dcc1c3e24",
+      "name": "Note — AI Pipeline",
+      "position": [
+        848,
+        16
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 4. Routing Logic\n\n- **Critical/High** → Full HTML email + Google Sheets\n- **Medium** → Brief email summary + Google Sheets\n- **Low** → Google Sheets only\n- **Confidence < 0.6** → status = 'needs-manual-review'",
+        "height": 192,
+        "width": 288
+      },
+      "id": "10e588ad-c9dc-40c0-943a-b1f61ec9edc7",
+      "name": "Note — Routing",
+      "position": [
+        1856,
+        48
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 5. Google Sheets Storage\n\n14 columns: Ticket ID, Timestamp, Name, Email, Subject, Category, Urgency, Sentiment, Confidence, AI Summary, Draft Response, Knowledge Sources, Status, Processing Log",
+        "height": 208,
+        "width": 224
+      },
+      "id": "e00497b2-b799-4e0f-a205-4480c4f4b55a",
+      "name": "Note — Storage",
+      "position": [
+        2496,
+        128
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "gpt-5-nano"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        864,
+        880
+      ],
+      "id": "94a04028-3234-45fc-85e6-c901e37a549b",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "6SeNpLJRVCjpphJM",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=TICKET CONTEXT:\n- Ticket ID: {{ $json.ticket_id }}\n- Customer: {{ $json.Name }} ({{ $json.Email }})\n- Subject: {{ $json.Subject }}\n- Category: {{ $json.Category }}\n- Urgency: {{ $json.Urgency }}\n- Sentiment: {{ $json.Sentiment }}\n- Confidence: {{ $json.Confidence }}\n- Summary: {{ $json.Summary }}\n\nCUSTOMER MESSAGE:\n{{ $json.Message }}\n\nINSTRUCTIONS:\n1. Query the vector store and use EXACTLY the top 3 most relevant chunks (no more, no less)\n2. Draft a professional customer reply using the retrieved knowledge\n3. Match the tone to the customer sentiment ({{ $json.Sentiment }})\n4. Reference specific knowledge base articles/policies by name when found (IMPORTANT: ALWAYS cite the filename from the metadata of retrieved chunks, e.g., '[Source: filename.md]')\n5. Treat retrieval as low-confidence when top similarity score is below 0.45 OR no relevant chunks are returned; in that case add this note at the end: 'Note: No specific policy found — this response is based on general knowledge.'\n\nReturn ONLY the draft email response text.",
+        "options": {
+          "systemMessage": "You are a professional customer support agent. Your task is to draft helpful, empathetic responses grounded in the company knowledge base.\n\nRules:\n1. Address the customer by name\n2. Reference specific company policies or documentation when available\n3. Match the urgency and tone appropriately\n4. Be concise but thorough\n5. End with a clear next step or offer of further assistance\n6. If the knowledge base doesn't contain relevant information, clearly note: 'Note: No specific policy found — this response is based on general knowledge.'"
+        }
+      },
+      "id": "2020f684-296f-40dc-a489-d1f3c3033e87",
+      "name": "Step 2 — RAG Draft Response",
+      "position": [
+        1280,
+        384
+      ],
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "02e2452d-99d9-48d3-becf-6ebf43c27311",
+      "name": "OpenAI (RAG Response)",
+      "position": [
+        1280,
+        768
+      ],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "6SeNpLJRVCjpphJM",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the company knowledge base for FAQ articles, product documentation, support policies, refund policies, shipping policies, account security guides, and SLA guidelines. Retrieve EXACTLY the top 3 most relevant chunks and pass their source metadata, and also their retrieval_score to the agent.",
+        "qdrantCollection": {
+          "__rl": true,
+          "cachedResultName": "knowledge_base",
+          "mode": "list",
+          "value": "knowledge_base"
+        },
+        "topK": 3,
+        "options": {}
+      },
+      "id": "ea2a8b3d-e7cb-4c68-8a2c-5bde19e6994b",
+      "name": "Qdrant Vector Store",
+      "position": [
+        1344,
+        704
+      ],
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "qdrantApi": {
+          "id": "gS8pf3aFkzyH62gC",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "51c080de-9ad4-4e99-8aef-ef2dd82e68c7",
+      "name": "Embeddings OpenAI",
+      "position": [
+        1344,
+        944
+      ],
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "6SeNpLJRVCjpphJM",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Build Final Record & Determine Status": {
+      "main": [
+        [
+          {
+            "node": "Urgency Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Merge PDF into Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail (Medium — Brief Summary)": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail (Urgent — Full Details)": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets (Log Ticket)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Attachment": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Attachment (Pass Through)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid": {
+      "main": [
+        [
+          {
+            "node": "IF Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 (Validation Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Classification Results": {
+      "main": [
+        [
+          {
+            "node": "Step 2 — RAG Draft Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDF into Ticket": {
+      "main": [
+        [
+          {
+            "node": "Step 1 — Classification & Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Attachment (Pass Through)": {
+      "main": [
+        [
+          {
+            "node": "Step 1 — Classification & Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI (Classification)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Step 1 — Classification & Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Step 1 — Classification & Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge Classification Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Step 1 — Classification & Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgency Router": {
+      "main": [
+        [
+          {
+            "node": "Gmail (Urgent — Full Details)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail (Urgent — Full Details)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail (Medium — Brief Summary)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Sheets (Log Ticket)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input & Generate ID": {
+      "main": [
+        [
+          {
+            "node": "IF Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (Intake)": {
+      "main": [
+        [
+          {
+            "node": "Validate Input & Generate ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Step 2 — RAG Draft Response": {
+      "main": [
+        [
+          {
+            "node": "Build Final Record & Determine Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI (RAG Response)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Step 2 — RAG Draft Response",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "Step 2 — RAG Draft Response",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9bdc22da-2766-4e70-8963-fc264d7230a0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "233bff778ba7736bd4acf453342be02da63af3db8bd1191bb0bb4a46d98ff861"
+  },
+  "id": "gOP5LYMLnbvGBPmu",
+  "tags": []
+}
